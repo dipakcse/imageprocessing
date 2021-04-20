@@ -145,7 +145,7 @@ for n, id_ in tqdm_notebook(enumerate(images_id), total=len(images_id)):
     y[n] = mask / 255.0
 
 # Split train and test data
-X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=42)
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=42)
 
 input_img = Input((img_height, img_width, 1), name='img')
 model = unet_model(input_img, n_filters=16, dropout=0.1, batchnorm=True)
@@ -159,18 +159,18 @@ callbacks = [
     ModelCheckpoint('model-tgs-salt.h5', verbose=1, save_best_only=True, save_weights_only=True)
 ]
 # fit the model
-results = model.fit(X_train, y_train, batch_size=32, epochs=epochs_size, validation_data=(X_test, y_test),
+results = model.fit(x_train, y_train, batch_size=32, epochs=epochs_size, validation_data=(x_test, y_test),
                     callbacks=callbacks)
 
 # loading the best model
 model.load_weights('model-tgs-salt.h5')
-score = model.evaluate(X_test, y_test, verbose=1)
+score = model.evaluate(x_test, y_test, verbose=1)
 
 print("Test loss = ", score[0])
 print("Test Accuracy = ", score[1])
 
-predic_train = model.predict(X_train, verbose=1)
-predic_test = model.predict(X_test, verbose=1)
+predic_train = model.predict(x_train, verbose=1)
+predic_test = model.predict(x_test, verbose=1)
 predic_train_t = (predic_train > 0.5).astype(np.uint8)
 #pred_test_t = (predic_test > 0.5).astype(np.uint8)
-plot_samp_data(X_train, y_train, predic_train, predic_train_t, ix=14)
+plot_samp_data(x_train, y_train, predic_train, predic_train_t, ix=14)
