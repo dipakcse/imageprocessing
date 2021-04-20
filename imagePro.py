@@ -174,3 +174,5 @@ predic_test = model.predict(x_test, verbose=1)
 predic_train_t = (predic_train > 0.5).astype(np.uint8)
 #pred_test_t = (predic_test > 0.5).astype(np.uint8)
 plot_samp_data(x_train, y_train, predic_train, predic_train_t, ix=14)
+
+
