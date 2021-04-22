@@ -15,8 +15,8 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.optimizers import Adam
 from keras.preprocessing.image import img_to_array, load_img
 
-# declare some parameters
-epochs_size = 50
+# declare some variables or parameters
+epochs_size = 45
 img_width = 128
 img_height = 128
 border = 5
@@ -44,8 +44,6 @@ def conv2d(in_tensor, n_filters, kernel_size=3, batchnorm=True):
 
 
 def unet_model(input_image, n_filters, dropout, batchnorm):
-    # define an UNET Model here
-
     c1 = conv2d(input_image, n_filters * 1, kernel_size=3, batchnorm=batchnorm)
     p1 = MaxPooling2D((max_pool_parm_1, max_pool_parm_1))(c1)
     p1 = Dropout(dropout)(p1)
@@ -93,30 +91,36 @@ def unet_model(input_image, n_filters, dropout, batchnorm):
     return ret_model
 
 
-def plot_samp_data(x, y, pred, binary_pred, ix=None):
+def plot_sample_data(x, y, pred, binary_pred, ix=None):
     if ix is None:
         ix = random.randint(0, len(x))
 
     has_mask = y[ix].max() > 0
 
     fig, ax = plt.subplots(1, 4, figsize=(20, 10))
+    # subplot for seismic
     ax[0].imshow(x[ix, ..., 0], cmap='seismic')
     if has_mask:
         ax[0].contour(y[ix].squeeze(), colors='k', levels=[0.5])
-    ax[0].set_title('Seismic')
+    ax[0].set_title('Seismic.')
 
+    # subplot for Salt
     ax[1].imshow(y[ix].squeeze())
-    ax[1].set_title('Salt')
+    ax[1].set_title('Salt.')
 
+    # subplot for Salt
     ax[2].imshow(pred[ix].squeeze(), vmin=0, vmax=1)
     if has_mask:
         ax[2].contour(y[ix].squeeze(), colors='k', levels=[0.5])
-    ax[2].set_title('Salt Predicted')
+    ax[2].set_title('Salt Predicted.')
 
+    # subplot for Salt Predicted binary
     ax[3].imshow(binary_pred[ix].squeeze(), vmin=0, vmax=1)
     if has_mask:
         ax[3].contour(y[ix].squeeze(), colors='k', levels=[0.5])
-    ax[3].set_title('Salt Predicted binary')
+    ax[3].set_title('Salt Predicted binary.')
+
+    # plot data
     plt.show()
 
 
@@ -130,48 +134,62 @@ with warnings.catch_warnings():
 
 # get list of all images
 images_id = next(os.walk("train/images"))[2]
-print("Total number of images found= ", len(images_id))
 x = np.zeros((len(images_id), img_height, img_width, 1), dtype=np.float32)
 y = np.zeros((len(images_id), img_height, img_width, 1), dtype=np.float32)
 for n, id_ in tqdm_notebook(enumerate(images_id), total=len(images_id)):
     # Load all images
     img = load_img("train/images/" + id_, color_mode="grayscale")
     x_img = img_to_array(img)
+
+    # resize images using 128
     x_img = resize(x_img, (img_height, img_width, 1), mode='constant', preserve_range=True)
+
     # Load each masks
     mask = img_to_array(load_img("train/masks/" + id_, color_mode="grayscale"))
+
+    # Resize masks using 128
     mask = resize(mask, (img_height, img_width, 1), mode='constant', preserve_range=True)
-    x[n] = x_img / 255.0
-    y[n] = mask / 255.0
+
+    # Divide images and mask using 255
+    x[n] = x_img / 255
+    y[n] = mask / 255
 
 # Split train and test data
 x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=42)
 
+# Input image for UNET model
 input_img = Input((img_height, img_width, 1), name='img')
+
+# built an UNET Model here
 model = unet_model(input_img, n_filters=16, dropout=0.1, batchnorm=True)
 model.compile(optimizer=Adam(), loss="binary_crossentropy", metrics=["accuracy"])
-# model.summary()
 
-# model checkpoint call function to save best result
+# model checkpoint callback function to save best model
 callbacks = [
-    EarlyStopping(patience=10, verbose=1),
-    ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1),
-    ModelCheckpoint('model-tgs-salt.h5', verbose=1, save_best_only=True, save_weights_only=True)
-]
+    EarlyStopping(patience=10, verbose=1), ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1),
+    ModelCheckpoint('model-tgs-salt.h5', verbose=1, save_best_only=True, save_weights_only=True)]
+
 # fit the model
 results = model.fit(x_train, y_train, batch_size=32, epochs=epochs_size, validation_data=(x_test, y_test),
                     callbacks=callbacks)
 
 # loading the best model
 model.load_weights('model-tgs-salt.h5')
+
+# evaluate the model
 score = model.evaluate(x_test, y_test, verbose=1)
 
+# print the test lost and accuracy
 print("Test loss = ", score[0])
 print("Test Accuracy = ", score[1])
 
+# predict the train and test
 predic_train = model.predict(x_train, verbose=1)
 predic_test = model.predict(x_test, verbose=1)
-predic_train_t = (predic_train > 0.5).astype(np.uint8)
-#pred_test_t = (predic_test > 0.5).astype(np.uint8)
-plot_samp_data(x_train, y_train, predic_train, predic_train_t, ix=14)
 
+# Threshold  the predictions
+predic_train_t = (predic_train > 0.5).astype(np.uint8)
+predic_test_t = (predic_test > 0.5).astype(np.uint8)
+
+# plotting sample data
+plot_sample_data(x_train, y_train, predic_train, predic_train_t, ix=14)
